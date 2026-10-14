@@ -1397,6 +1397,25 @@
     .industries-label-wrap{ padding-top:44px; }
   }
 
+  /* Mobile optimisation: "Loved by 250+ clients" */
+  .industries-label-wrap{ box-sizing:border-box; width:100%; max-width:100%; padding-left:16px; padding-right:16px; }
+  .industries-heading{ overflow-wrap:anywhere; }
+  @media(max-width:700px){
+    .industries-section{ height:78vh; min-height:540px; max-height:720px; border-radius:22px; }
+    @supports (height:100svh){ .industries-section{ height:78svh; } }
+    .industries-label-wrap{ padding-top:36px; padding-left:14px; padding-right:14px; }
+    .industries-heading{ font-size:clamp(30px, 9.5vw, 44px); letter-spacing:-1px; margin-top:14px; }
+    .industries-eyebrow::after{ height:34px; }
+    .trust-badge{ margin-top:16px; max-width:100%; }
+    .trust-text{ white-space:normal; font-size:13px; line-height:1.4; }
+    .industries-marquee{ margin-top:20px; max-width:100%; }
+    .im-item{ font-size:12.5px; padding:0 12px; }
+    .industries-marquee-track{ animation-duration:32s; }
+  }
+  @media(prefers-reduced-motion:reduce){
+    .industries-marquee-track{ animation:none; }
+  }
+
   /* ===== INDUSTRIES WE SERVE — hover work index (ported from pasted source) ===== */
   .work-index{
     position: relative;
@@ -1770,6 +1789,23 @@
     .stats-grid{ grid-template-columns:1fr; }
     .stat-card-wide, .stat-card-third{ grid-column:span 1; }
     .stat-card-image{ min-height:200px; }
+  }
+
+  /* Mobile fix: keep "How we plan the work" stats inside their boxes */
+  .stats-section, .stats-top-card, .stat-card{ box-sizing:border-box; max-width:100%; }
+  .stats-top-metric, .stats-top-rating, .stats-rating-side, .stat-card-head > *{ min-width:0; }
+  @media(max-width:700px){
+    .stats-section{ padding:40px 14px 32px; overflow:hidden; }
+    .stats-heading{ font-size:clamp(24px, 7vw, 32px); margin-bottom:30px; overflow-wrap:anywhere; }
+    .stats-top-card{ padding:22px 20px; gap:22px; width:100%; }
+    .stats-top-text p{ font-size:19px; }
+    .stats-top-metric, .stats-top-rating{ width:100%; flex-wrap:wrap; gap:8px 14px; }
+    .stats-big{ font-size:40px; letter-spacing:-1.5px; }
+    .stats-top-metric p, .stats-top-rating p{ max-width:none; flex:1 1 120px; font-size:14px; overflow-wrap:break-word; }
+    .stat-card{ padding:22px 20px; min-height:0; }
+    .stat-card-head{ flex-wrap:wrap; gap:8px 14px; }
+    .stats-big-sm{ font-size:34px; }
+    .stat-card-title{ flex:1 1 140px; overflow-wrap:break-word; }
   }
 
   /* ===== FAQ ("Got questions? We've got answers") ===== */
@@ -3318,7 +3354,13 @@
     if(!ctx) return;
 
     const config = {
-      src: 'https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/open-peeps-sheet.png',
+      // Same sprite sheet the Skiper component uses: save it as images/peeps/all-peeps.png
+      // on your site. The other paths are tried only if this one is missing.
+      srcs: [
+        'images/peeps/all-peeps.png',
+        'open-peeps-sheet.png',
+        'https://s3-us-west-2.amazonaws.com/s.cdpn.io/175711/open-peeps-sheet.png'
+      ],
       rows: 15,
       cols: 7
     };
@@ -3335,7 +3377,7 @@
     const resetPeep = ({ stage, peep }) => {
       const direction = Math.random() > 0.5 ? 1 : -1;
       // ease-skewed random Y helps hide that peeps have no legs
-      const offsetY = 100 - 250 * gsap.parseEase('power2.in')(Math.random());
+      const offsetY = (100 - 250 * gsap.parseEase('power2.in')(Math.random())) * peep.scale;
       const startY = stage.height - peep.height + offsetY;
       let startX, endX;
 
@@ -3368,7 +3410,7 @@
         duration: yDuration,
         repeat: xDuration / yDuration,
         yoyo: true,
-        y: startY - 10
+        y: startY - 10 * peep.scale
       }, 0);
 
       return tl;
@@ -3379,18 +3421,23 @@
     // PEEP
     function Peep({ image, rect }){
       this.image = image;
-      this.setRect(rect);
+      this.scale = 1;
       this.x = 0;
       this.y = 0;
       this.anchorY = 0;
       this.scaleX = 1;
       this.walk = null;
+      this.setRect(rect);
     }
     Peep.prototype.setRect = function(rect){
       this.rect = rect;
-      this.width = rect[2];
-      this.height = rect[3];
-      this.drawArgs = [this.image, ...rect, 0, 0, this.width, this.height];
+      this.applyScale(this.scale);
+    };
+    Peep.prototype.applyScale = function(scale){
+      this.scale = scale;
+      this.width = this.rect[2] * scale;
+      this.height = this.rect[3] * scale;
+      this.drawArgs = [this.image, ...this.rect, 0, 0, this.width, this.height];
     };
     Peep.prototype.render = function(ctx){
       ctx.save();
@@ -3400,24 +3447,72 @@
       ctx.restore();
     };
 
+    // Fallback sprite sheet: if the hosted illustration cannot load (blocked,
+    // offline, or the host is gone), draw a simple crowd so the animation never goes missing.
+    function buildFallbackSheet(){
+      const cw = 110, ch = 220;
+      const sheet = document.createElement('canvas');
+      sheet.width = cw * config.rows;
+      sheet.height = ch * config.cols;
+      const c = sheet.getContext('2d');
+      const skins = ['#f3d2b3','#e0ac84','#c68863','#a16a45','#7a4a2d','#f6dcc4'];
+      const hairs = ['#1b1620','#3b2a20','#6b4226','#b9772f','#d9b15a','#2c2c34','#8a8a92'];
+      const tops = ['#ff5a36','#6c4cf1','#1f9d8b','#f7b733','#2b2f4a','#e84d8a','#3f8cff','#7bbf4a','#100e1c'];
+      const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+      for (let r = 0; r < config.cols; r++){
+        for (let col = 0; col < config.rows; col++){
+          const ox = col * cw, oy = r * ch, cx = ox + cw / 2;
+          const skin = pick(skins), hair = pick(hairs), top = pick(tops);
+          const headR = 22 + Math.random() * 5;
+          const headY = oy + 50 + Math.random() * 10;
+          // torso
+          c.fillStyle = top;
+          c.beginPath();
+          c.moveTo(cx - 40, oy + ch);
+          c.lineTo(cx - 36, headY + headR + 26);
+          c.quadraticCurveTo(cx, headY + headR + 4, cx + 36, headY + headR + 26);
+          c.lineTo(cx + 40, oy + ch);
+          c.closePath();
+          c.fill();
+          // neck
+          c.fillStyle = skin;
+          c.fillRect(cx - 8, headY + headR - 4, 16, 18);
+          // head
+          c.beginPath();
+          c.arc(cx, headY, headR, 0, Math.PI * 2);
+          c.fill();
+          // hair
+          c.fillStyle = hair;
+          c.beginPath();
+          c.arc(cx, headY - 3, headR + 2, Math.PI, 0);
+          if (Math.random() > 0.5){ c.rect(cx - headR - 2, headY - 3, 7, 26); }
+          c.fill();
+        }
+      }
+      return sheet;
+    }
+
     // MAIN
-    const img = document.createElement('img');
-    img.crossOrigin = 'anonymous';
+    let source = null;
     const stage = { width: 0, height: 0 };
     const allPeeps = [];
     const availablePeeps = [];
     const crowd = [];
+    let started = false;
+    let visible = true;
+    let lastW = 0;
 
     function createPeeps(){
       const { rows, cols } = config;
-      const { naturalWidth: width, naturalHeight: height } = img;
+      const width = source.naturalWidth || source.width;
+      const height = source.naturalHeight || source.height;
       const total = rows * cols;
       const rectWidth = width / rows;
       const rectHeight = height / cols;
 
       for (let i = 0; i < total; i++){
         allPeeps.push(new Peep({
-          image: img,
+          image: source,
           rect: [
             (i % rows) * rectWidth,
             ((i / rows) | 0) * rectHeight,
@@ -3431,14 +3526,25 @@
     function resize(){
       stage.width = canvas.clientWidth;
       stage.height = canvas.clientHeight;
-      canvas.width = stage.width * devicePixelRatio;
-      canvas.height = stage.height * devicePixelRatio;
+      if (!stage.width || !stage.height) return;
+      lastW = stage.width;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = stage.width * dpr;
+      canvas.height = stage.height * dpr;
+
+      // smaller people and a thinner crowd on phones
+      const mobile = stage.width < 700;
+      const scale = mobile ? 0.55 : 1;
+      allPeeps.forEach((peep) => peep.applyScale(scale));
 
       crowd.forEach((peep) => { peep.walk.kill(); });
 
       crowd.length = 0;
       availablePeeps.length = 0;
-      availablePeeps.push(...allPeeps);
+      const pool = allPeeps.slice();
+      const keep = mobile ? 45 : pool.length;
+      while (pool.length > keep) removeRandomFromArray(pool);
+      availablePeeps.push(...pool);
 
       initCrowd();
     }
@@ -3472,22 +3578,53 @@
     }
 
     function render(){
+      if (!visible) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(devicePixelRatio, devicePixelRatio);
+      ctx.scale(dpr, dpr);
       crowd.forEach((peep) => { peep.render(ctx); });
       ctx.restore();
     }
 
-    function init(){
+    function init(src){
+      if (started) return;
+      started = true;
+      source = src;
       createPeeps();
       resize();
       gsap.ticker.add(render);
-      window.addEventListener('resize', resize);
+      // only rebuild when the width changes (mobile URL bar resizes fire constantly while scrolling)
+      let t;
+      window.addEventListener('resize', () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          if (Math.abs(canvas.clientWidth - lastW) > 1) resize();
+        }, 150);
+      });
+      // draw only while the section is on screen
+      if ('IntersectionObserver' in window){
+        new IntersectionObserver((entries) => {
+          visible = entries[0].isIntersecting;
+        }, { rootMargin: '100px' }).observe(canvas);
+      }
     }
 
-    img.onload = init;
-    img.src = config.src;
+    // Load the illustration; retry without CORS (drawing needs no pixel access),
+    // then fall back to the generated crowd.
+    function loadSprite(i, useCors){
+      if (i >= config.srcs.length){ init(buildFallbackSheet()); return; }
+      const im = new Image();
+      if (useCors) im.crossOrigin = 'anonymous';
+      im.onload = () => init(im);
+      im.onerror = () => {
+        if (useCors) loadSprite(i, false);
+        else loadSprite(i + 1, true);
+      };
+      im.src = config.srcs[i];
+    }
+    loadSprite(0, true);
+    setTimeout(() => { if (!started) init(buildFallbackSheet()); }, 7000);
   })();
 
   // Scroll-reveal section — gold/yellow fill rises from the bottom, icons/arrow/CTA
